@@ -87,8 +87,58 @@ docker run -p 3000:3000 chat_client
 
 ## Auteur
 
-- [Votre Nom ou GitHub](https://github.com/Scarllet-hash)
+- [Scarllet-hash](https://github.com/Scarllet-hash)
 
 ---
 
 > **Astuce** : Vous pouvez ouvrir plusieurs onglets navigateur pour simuler plusieurs utilisateurs.
+
+# Schéma explicatif : WebSocketd comme pont WebSocket ↔ TCP
+
+```plaintext
++-------------------+         WebSocket         +------------------+        TCP         +-------------------------+
+|  Navigateur Web   | <----------------------> |   websocketd     | <--------------->  |  Serveur C (chat_server)|
+| (React/JS client) |  ws://localhost:8080     | (avec socat)     | 127.0.0.1:12345    |   (TCP natif)           |
++-------------------+                          +------------------+                   +-------------------------+
+```
+
+**Détail du cheminement d'un message :**
+
+1. **L'utilisateur envoie un message** depuis le navigateur via JavaScript (WebSocket sur ws://localhost:8080).
+2. **websocketd** reçoit ce message et lance `/tcp-proxy.sh`, qui exécute :  
+   `socat STDIO TCP:server:12345`
+3. **socat** fait le pont entre les E/S WebSocket (gérées par websocketd) et une connexion TCP vers ton serveur C (`chat_server.c`).
+4. Le serveur C traite le message, puis la réponse suit le même chemin en sens inverse.
+
+---
+
+## Illustration étape par étape
+
+```plaintext
+UTILISATEUR
+    │
+    ▼
+Navigateur (React/JS) --WebSocket--> websocketd --STDIO--> socat --TCP--> Serveur C
+    ▲                                                                         │
+    └-------------------<----------------<----------------<-------------------┘
+         (réponse)
+```
+
+---
+
+## Pourquoi utiliser websocketd + socat ?
+
+- **websocketd** : Traduit les messages WebSocket en entrée/sortie standard (STDIN/STDOUT).
+- **socat** : Connecte STDIN/STDOUT à une socket TCP.
+- **Le serveur C** n'a pas besoin de comprendre le protocole WebSocket, uniquement TCP.
+
+---
+
+## Résumé
+
+- **websocketd** permet à des clients WebSocket modernes (navigateurs, etc.) de dialoguer avec des serveurs qui n’implémentent pas WebSocket, mais seulement TCP ou du texte.
+- **socat** relie ce flux texte à une connexion TCP.
+
+---
+
+> **Astuce** : Tu peux remplacer le serveur C par n’importe quel programme console : websocketd s’occupe de la passerelle WebSocket pour toi.
