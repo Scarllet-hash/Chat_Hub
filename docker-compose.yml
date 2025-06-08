@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  server:
+    build: ./server
+    container_name: chat-server
+    ports:
+      - "12345:12345"
+  websocketd:
+    build: ./websocketd
+    container_name: websocketd
+    depends_on:
+      - server
+    ports:
+      - "8080:8080"
+    links:
+      - server
+  client:
+    build: ./client
+    container_name: chat-client
+    ports:
+      - "3000:3000"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - websocketd
